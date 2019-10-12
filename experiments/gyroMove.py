@@ -14,13 +14,25 @@ def gyroMove():
 
     gyro_drive = MoveTankWithGyro(OUTPUT_A, OUTPUT_D)
     gyro_drive.gyro = GyroSensor()
+
+    sleep(2)
     gyro_drive.calibrate_gyro()
+
+    target_angle = 90
+
+    # Pivot 90 degrees
+    gyro_drive.pivot_gyro(
+        speed=SpeedPercent(5),
+        target_angle=target_angle
+    )
+
+    # Drive straight at the angle
     gyro_drive.follow_gyro(
         kp=11.3, ki=0.05, kd=3.2,
         speed=SpeedPercent(30),
-        gyro_angle_tolerance=3,
+        target_angle=target_angle,
         follow_for=follow_for_ms,
-        ms=10000
+        ms=5000
     )
 
 def main():

@@ -15,10 +15,10 @@ def calibrateGyro(gyro):
     """
 
     myLogger.log("Calibrating gyro...")
-    for sleepTime in [2, 0.5]:
+    for x in range(2):
         gyro.mode = 'GYRO-RATE'
         gyro.mode = 'GYRO-ANG'
-        sleep(sleepTime)
+        sleep(0.5)
     myLogger.log("DONE")
 
 
@@ -29,6 +29,7 @@ def doGyro():
     gyroSensor = GyroSensor()
 
     # Reset gyro
+    sleep(2)
     calibrateGyro(gyroSensor)
 
     while True:

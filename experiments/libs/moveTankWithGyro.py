@@ -26,24 +26,22 @@ class MoveTankWithGyro(MoveTank):
         self.gyro = None
 
     def calibrate_gyro(self):
-        assert self.gyro, "GyroSensor must be defined"
         """
         Calibrates the gyro sensor.
 
-        NOTE: This takes 3sec to run
+        NOTE: This takes 1sec to run
         """
+        assert self.gyro, "GyroSensor must be defined"
 
-        for sleepTime in [2, 0.5]:
+        for x in range(2):
             self.gyro.mode = 'GYRO-RATE'
             self.gyro.mode = 'GYRO-ANG'
-            sleep(sleepTime)
+            sleep(0.5)
 
     def follow_gyro(self,
                     kp, ki, kd,
                     speed,
-                    target_gyro_angle=0,
-                    gyro_angle_tolerance=3,
-                    off_line_count_max=20,
+                    target_angle=0,
                     sleep_time=0.01,
                     follow_for=follow_for_forever,
                     **kwargs
@@ -52,11 +50,7 @@ class MoveTankWithGyro(MoveTank):
         PID line follower
         ``kp``, ``ki``, and ``kd`` are the PID constants.
         ``speed`` is the desired speed of the midpoint of the robot
-        ``target_gyro_angle`` is the angle we want drive
-        ``gyro_angle_tolerance`` is the +/- tolerance to allow for drift
-        ``off_line_count_max`` is how many consecutive times through the loop the
-            target_gyro_angle must be greater than ``gyro_angle_tolerance`` before we
-            declare we're off target and raise an exception
+        ``target_angle`` is the angle we want drive
         ``sleep_time`` is how many seconds we sleep on each pass through
             the loop.  This is to give the robot a chance to react
             to the new motor settings. This should be something small such
@@ -71,8 +65,7 @@ class MoveTankWithGyro(MoveTank):
         .. code:: python
             from ev3dev2.motor import OUTPUT_A, OUTPUT_B, MoveTank, SpeedPercent, follow_for_ms
             from ev3dev2.sensor.lego import GyroSensor
-            from moveTankWithGyro import MoveTankWithGyro
-            tank = MoveTankWithGyro(OUTPUT_A, OUTPUT_B)
+            tank = MoveTank(OUTPUT_A, OUTPUT_B)
             tank.gyro = GyroSensor()
             try:
                 # Follow the line for 4500ms
@@ -92,13 +85,12 @@ class MoveTankWithGyro(MoveTank):
         integral = 0.0
         last_error = 0.0
         derivative = 0.0
-        off_line_count = 0
         speed_native_units = speed.to_native_units(self.left_motor)
         MAX_SPEED = SpeedNativeUnits(self.max_speed)
 
         while follow_for(self, **kwargs):
-            current_gyro_angle = self.gyro.angle
-            error = target_gyro_angle + current_gyro_angle
+            current_angle = self.gyro.angle
+            error = current_angle - target_angle
             integral = integral + error
             derivative = error - last_error
             last_error = error
@@ -121,19 +113,64 @@ class MoveTankWithGyro(MoveTank):
                 raise GyroFollowErrorTooFast(
                     "The robot is moving too fast to follow the angle")
 
-            # Have we lost the line?
-            if current_gyro_angle >= gyro_angle_tolerance:
-                off_line_count += 1
-
-                if off_line_count >= off_line_count_max:
-                    self.stop()
-                    raise GyroFollowErrorLostAngle("we lost the line")
-            else:
-                off_line_count = 0
-
             if sleep_time:
                 sleep(sleep_time)
 
             self.on(left_speed, right_speed)
 
         self.stop()
+
+    def pivot_gyro(self,
+                    speed,
+                    target_angle=0,
+                    sleep_time=0.01
+        ):
+        """
+        Pivot Turn
+        ``speed`` is the desired speed of the midpoint of the robot
+        ``target_angle`` is the angle we want drive
+        ``sleep_time`` is how many seconds we sleep on each pass through
+            the loop.  This is to give the robot a chance to react
+            to the new motor settings. This should be something small such
+            as 0.01 (10ms).
+        Example:
+        .. code:: python
+            from ev3dev2.motor import OUTPUT_A, OUTPUT_B, MoveTank, SpeedPercent
+            from ev3dev2.sensor.lego import GyroSensor
+            tank = MoveTank(OUTPUT_A, OUTPUT_B)
+            tank.gyro = GyroSensor()
+            try:
+                # Reset gyro sensor to zero
+                tank.calibrate_gyro()
+
+                # Pivot 30 degrees
+                tank.pivot_gyro(
+                    speed=SpeedPercent(5),
+                    target_angle(30)
+                )
+            except Exception:
+                tank.stop()
+                raise
+        """
+        assert self.gyro, "GyroSensor must be defined"
+
+        speed_native_units = speed.to_native_units(self.left_motor)
+        target_reached = False
+
+        while not target_reached:
+            current_angle = self.gyro.angle
+            if (current_angle >= target_angle-2 and current_angle <= target_angle+2):
+                target_reached = True
+                self.stop()
+            elif (current_angle > target_angle):
+                left_speed = SpeedNativeUnits(-1 * speed_native_units)
+                right_speed = SpeedNativeUnits(speed_native_units)
+            else:
+                left_speed = SpeedNativeUnits(speed_native_units)
+                right_speed = SpeedNativeUnits(-1 * speed_native_units)
+
+            if sleep_time:
+                sleep(sleep_time)
+
+            self.on(left_speed, right_speed)
+
